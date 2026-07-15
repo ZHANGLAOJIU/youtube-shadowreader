@@ -57,12 +57,24 @@ document.querySelector("#openReader").addEventListener("click", async () => {
     return;
   }
 
-  const url = chrome.runtime.getURL(`reader.html?tabId=${tab.id}`);
-  await chrome.windows.create({
-    url,
-    type: "popup",
-    width: 1200,
-    height: 820
+  chrome.runtime.sendMessage({
+    type: "reader-on-chrome:open-reader-tab",
+    tabId: tab.id
+  });
+  window.close();
+});
+
+document.querySelector("#openReaderWindow").addEventListener("click", async () => {
+  const tab = await activeYouTubeTab();
+  if (!tab) {
+    document.querySelector("#popupStatus").textContent =
+      "请先打开一个普通 YouTube 视频。";
+    return;
+  }
+
+  chrome.runtime.sendMessage({
+    type: "reader-on-chrome:open-reader-window",
+    tabId: tab.id
   });
   window.close();
 });

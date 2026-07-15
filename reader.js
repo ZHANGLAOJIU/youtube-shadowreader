@@ -5,6 +5,11 @@ const captionCore = globalThis.ReaderCaptionCore;
 const DEFAULT_SETTINGS = { displayMode: "bilingual" };
 const POLL_INTERVAL_MS = 250;
 
+chrome.runtime.sendMessage({
+  type: "reader-on-chrome:register-reader",
+  tabId: sourceTabId
+});
+
 const state = {
   sentences: [],
   activeIndex: -1,

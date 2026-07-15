@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "YouTube 双语字幕",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "在 YouTube 视频上同步显示按句整理的英文和简体中文字幕。",
   "permissions": ["storage", "activeTab"],
   "host_permissions": ["https://www.youtube.com/*"],
@@ -18,7 +18,7 @@
         "default": "Alt+Shift+R",
         "mac": "Alt+Shift+R"
       },
-      "description": "打开 ShadowReader 伴读器"
+      "description": "在 YouTube 与 ShadowReader 伴读器之间切换"
     }
   },
   "content_scripts": [
