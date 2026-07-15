@@ -98,6 +98,24 @@ button:hover {
   letter-spacing: 0.05em;
 }
 
+.rate-toast {
+  position: fixed;
+  top: 84px;
+  left: 20px;
+  z-index: 8;
+  min-width: 96px;
+  padding: 9px 13px;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--border));
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--bg-base) 92%, var(--accent));
+  box-shadow: var(--shadow);
+  color: var(--fg-emphasis);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  pointer-events: none;
+}
+
 .video-heading {
   min-width: 0;
   text-align: center;

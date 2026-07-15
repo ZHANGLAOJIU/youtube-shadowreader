@@ -4,6 +4,7 @@ const sourceTabId = Number(new URL(location.href).searchParams.get("tabId"));
 const captionCore = globalThis.ReaderCaptionCore;
 const DEFAULT_SETTINGS = { displayMode: "bilingual" };
 const POLL_INTERVAL_MS = 250;
+let rateToastTimer = null;
 
 chrome.runtime.sendMessage({
   type: "reader-on-chrome:register-reader",
@@ -51,6 +52,7 @@ const elements = {
   rateDown: document.querySelector("#rateDown"),
   rateValue: document.querySelector("#rateValue"),
   rateUp: document.querySelector("#rateUp"),
+  rateToast: document.querySelector("#rateToast"),
   sentenceCounter: document.querySelector("#sentenceCounter")
 };
 
@@ -76,6 +78,19 @@ function formatTime(milliseconds) {
   return hours
     ? `${hours}:${String(minutes).padStart(2, "0")}:${seconds}`
     : `${minutes}:${seconds}`;
+}
+
+function formatPlaybackRate(rate) {
+  return `${Number(rate).toFixed(2).replace(/\.00$/, "").replace(/0$/, "")}×`;
+}
+
+function showRateToast(rate) {
+  clearTimeout(rateToastTimer);
+  elements.rateToast.textContent = `速度 ${formatPlaybackRate(rate)}`;
+  elements.rateToast.hidden = false;
+  rateToastTimer = setTimeout(() => {
+    elements.rateToast.hidden = true;
+  }, 2000);
 }
 
 function setConnection(connected, message = "") {
@@ -189,7 +204,7 @@ function updatePlayback(snapshot) {
   state.paused = snapshot.paused;
   state.playbackRate = snapshot.playbackRate || 1;
   elements.playButton.textContent = snapshot.paused ? "▶" : "Ⅱ";
-  elements.rateValue.textContent = `${state.playbackRate.toFixed(2).replace(/\.00$/, "").replace(/0$/, "")}×`;
+  elements.rateValue.textContent = formatPlaybackRate(state.playbackRate);
   elements.currentTime.textContent = formatTime(snapshot.currentTimeMs);
   elements.duration.textContent = formatTime(state.durationMs);
   elements.timeline.max = String(Math.max(1, state.durationMs / 1000));
@@ -272,7 +287,8 @@ async function setPlaybackRate(rate) {
     });
     if (response?.ok) {
       state.playbackRate = response.playbackRate;
-      elements.rateValue.textContent = `${state.playbackRate.toFixed(2).replace(/\.00$/, "").replace(/0$/, "")}×`;
+      elements.rateValue.textContent = formatPlaybackRate(state.playbackRate);
+      showRateToast(state.playbackRate);
     }
   } catch {
     setConnection(false, "无法调整视频速度");
