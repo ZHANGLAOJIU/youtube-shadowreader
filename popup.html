@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YouTube 双语字幕</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <div>
+          <h1>YouTube 双语字幕</h1>
+          <p>Reader on Chrome</p>
+        </div>
+        <label class="switch" title="启用插件">
+          <input id="enabled" type="checkbox" />
+          <span></span>
+        </label>
+      </header>
+
+      <label>
+        <span>显示模式</span>
+        <select id="displayMode">
+          <option value="bilingual">英文＋中文</option>
+          <option value="english">仅英文</option>
+          <option value="chinese">仅中文</option>
+        </select>
+      </label>
+
+      <label>
+        <span>英文字号 <output id="fontSizeValue"></output></span>
+        <input id="fontSize" type="range" min="18" max="42" step="1" />
+      </label>
+
+      <label>
+        <span>字幕高度 <output id="bottomPercentValue"></output></span>
+        <input id="bottomPercent" type="range" min="5" max="32" step="1" />
+      </label>
+
+      <label>
+        <span>背景深度 <output id="backgroundOpacityValue"></output></span>
+        <input
+          id="backgroundOpacity"
+          type="range"
+          min="0"
+          max="0.95"
+          step="0.05"
+        />
+      </label>
+
+      <button id="openReader" class="primary" type="button">打开 ShadowReader 伴读器</button>
+      <button id="reload" type="button">重新读取当前字幕</button>
+      <p id="popupStatus" class="popup-status" role="status"></p>
+      <p class="footnote">字幕来自 YouTube；不下载视频，也不上传音频。</p>
+    </main>
+    <script src="popup.js"></script>
+  </body>
+</html>

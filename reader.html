@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YouTube 伴读器</title>
+    <link rel="stylesheet" href="reader.css" />
+  </head>
+  <body data-theme="light">
+    <header class="topbar">
+      <div class="brand">
+        <strong>ShadowReader</strong>
+        <span>YouTube 伴读</span>
+      </div>
+      <div class="video-heading">
+        <div id="videoTitle">正在连接 YouTube…</div>
+        <div id="connection" data-state="connecting">正在连接</div>
+      </div>
+      <div class="top-actions">
+        <select id="displayMode" aria-label="字幕显示模式">
+          <option value="bilingual">中 / EN</option>
+          <option value="english">EN</option>
+          <option value="chinese">中文</option>
+        </select>
+        <button id="themeToggle" type="button" title="切换明暗主题">◐</button>
+        <button id="openVideo" type="button" title="回到 YouTube">视频</button>
+        <button id="transcriptToggle" type="button" aria-expanded="false">全文</button>
+      </div>
+    </header>
+
+    <main>
+      <section class="focus-reader" aria-label="伴读区域">
+        <button id="previousHint" class="sentence-hint previous" type="button"></button>
+
+        <article id="currentSentence" class="current-sentence" aria-live="polite">
+          <p id="emptyMessage" class="empty-message">正在读取字幕…</p>
+          <p id="englishText" class="english-text" lang="en"></p>
+          <p id="chineseText" class="chinese-text" lang="zh-CN"></p>
+        </article>
+
+        <button id="nextHint" class="sentence-hint next" type="button"></button>
+      </section>
+
+      <aside id="transcriptPanel" class="transcript-panel" aria-hidden="true">
+        <div class="transcript-heading">
+          <div>
+            <strong>完整字幕</strong>
+            <span id="transcriptCount"></span>
+          </div>
+          <button id="transcriptClose" type="button" aria-label="关闭完整字幕">×</button>
+        </div>
+        <div id="transcriptList" class="transcript-list"></div>
+      </aside>
+    </main>
+
+    <footer class="playerbar">
+      <div class="transport">
+        <button id="previousButton" type="button" title="上一句（←）">←</button>
+        <button id="playButton" class="play-button" type="button" title="播放/暂停（空格）">▶</button>
+        <button id="nextButton" type="button" title="下一句（→）">→</button>
+      </div>
+      <span id="currentTime" class="time">0:00</span>
+      <input id="timeline" type="range" min="0" max="1" step="0.05" value="0" aria-label="视频进度" />
+      <span id="duration" class="time">0:00</span>
+      <div class="rate-control" aria-label="播放速度">
+        <button id="rateDown" type="button" title="减速 0.1×（Z）">−</button>
+        <button id="rateValue" type="button" title="恢复 1×（X）">1×</button>
+        <button id="rateUp" type="button" title="加速 0.1×（C）">+</button>
+      </div>
+      <span id="sentenceCounter" class="sentence-counter">0 / 0</span>
+    </footer>
+
+    <script src="caption-core.js"></script>
+    <script src="reader.js"></script>
+  </body>
+</html>

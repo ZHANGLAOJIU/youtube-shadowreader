@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube 双语字幕",
+  "version": "0.2.0",
+  "description": "在 YouTube 视频上同步显示按句整理的英文和简体中文字幕。",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["https://www.youtube.com/*"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "YouTube 双语字幕",
+    "default_popup": "popup.html"
+  },
+  "commands": {
+    "open-reader": {
+      "suggested_key": {
+        "default": "Alt+Shift+R",
+        "mac": "Alt+Shift+R"
+      },
+      "description": "打开 ShadowReader 伴读器"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["page-bridge.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    },
+    {
+      "matches": ["https://www.youtube.com/*"],
+      "js": ["caption-core.js", "content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
