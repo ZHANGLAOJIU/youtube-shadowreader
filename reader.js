@@ -5,7 +5,6 @@ const captionCore = globalThis.ReaderCaptionCore;
 const DEFAULT_SETTINGS = { displayMode: "bilingual" };
 const POLL_INTERVAL_MS = 250;
 let rateToastTimer = null;
-let rateVerificationTimer = null;
 
 chrome.runtime.sendMessage({
   type: "reader-on-chrome:register-reader",
@@ -21,6 +20,7 @@ const state = {
   durationMs: 0,
   paused: true,
   playbackRate: 1,
+  playbackRateReady: false,
   connected: false,
   transcriptOpen: false,
   seeking: false,
@@ -50,9 +50,7 @@ const elements = {
   timeline: document.querySelector("#timeline"),
   currentTime: document.querySelector("#currentTime"),
   duration: document.querySelector("#duration"),
-  rateDown: document.querySelector("#rateDown"),
   rateValue: document.querySelector("#rateValue"),
-  rateUp: document.querySelector("#rateUp"),
   rateToast: document.querySelector("#rateToast"),
   sentenceCounter: document.querySelector("#sentenceCounter")
 };
@@ -87,41 +85,11 @@ function formatPlaybackRate(rate) {
 
 function showRateToast(rate) {
   clearTimeout(rateToastTimer);
-  delete elements.rateToast.dataset.tone;
   elements.rateToast.textContent = `速度 ${formatPlaybackRate(rate)}`;
   elements.rateToast.hidden = false;
   rateToastTimer = setTimeout(() => {
     elements.rateToast.hidden = true;
   }, 2000);
-}
-
-function showRateConflictToast(rate) {
-  clearTimeout(rateToastTimer);
-  elements.rateToast.dataset.tone = "warning";
-  elements.rateToast.textContent = `其他倍速插件已改回 ${formatPlaybackRate(rate)}`;
-  elements.rateToast.hidden = false;
-  rateToastTimer = setTimeout(() => {
-    elements.rateToast.hidden = true;
-  }, 4500);
-}
-
-function verifyPlaybackRate(expectedRate) {
-  clearTimeout(rateVerificationTimer);
-  rateVerificationTimer = setTimeout(async () => {
-    try {
-      const snapshot = await tabMessage({
-        type: "reader-on-chrome:get-playback"
-      });
-      if (
-        snapshot?.ok &&
-        Math.abs(Number(snapshot.playbackRate) - expectedRate) > 0.01
-      ) {
-        showRateConflictToast(snapshot.playbackRate);
-      }
-    } catch {
-      // The normal connection status handles a closed YouTube tab.
-    }
-  }, 1300);
 }
 
 function setConnection(connected, message = "") {
@@ -233,7 +201,15 @@ function updatePlayback(snapshot) {
   setConnection(true, snapshot.status || "已连接");
   state.durationMs = snapshot.durationMs || state.durationMs;
   state.paused = snapshot.paused;
-  state.playbackRate = snapshot.playbackRate || 1;
+  const playbackRate = snapshot.playbackRate || 1;
+  if (
+    state.playbackRateReady &&
+    Math.abs(playbackRate - state.playbackRate) > 0.01
+  ) {
+    showRateToast(playbackRate);
+  }
+  state.playbackRate = playbackRate;
+  state.playbackRateReady = true;
   elements.playButton.textContent = snapshot.paused ? "▶" : "Ⅱ";
   elements.rateValue.textContent = formatPlaybackRate(state.playbackRate);
   elements.currentTime.textContent = formatTime(snapshot.currentTimeMs);
@@ -309,24 +285,6 @@ function moveSentence(offset) {
   seekToIndex(Math.max(0, Math.min(state.sentences.length - 1, current + offset)));
 }
 
-async function setPlaybackRate(rate) {
-  const requestedRate = Math.round(Number(rate) * 10) / 10;
-  try {
-    const response = await tabMessage({
-      type: "reader-on-chrome:set-playback-rate",
-      rate: requestedRate
-    });
-    if (response?.ok) {
-      state.playbackRate = response.playbackRate;
-      elements.rateValue.textContent = formatPlaybackRate(state.playbackRate);
-      showRateToast(state.playbackRate);
-      verifyPlaybackRate(state.playbackRate);
-    }
-  } catch {
-    setConnection(false, "无法调整视频速度");
-  }
-}
-
 function setTranscriptOpen(open) {
   state.transcriptOpen = open;
   elements.transcriptPanel.dataset.open = String(open);
@@ -342,14 +300,6 @@ elements.nextButton.addEventListener("click", () => moveSentence(1));
 elements.playButton.addEventListener("click", () => {
   tabMessage({ type: "reader-on-chrome:toggle-playback" }).catch(() => {});
 });
-elements.rateDown.addEventListener("click", () => {
-  setPlaybackRate(state.playbackRate - 0.1);
-});
-elements.rateValue.addEventListener("click", () => setPlaybackRate(1));
-elements.rateUp.addEventListener("click", () => {
-  setPlaybackRate(state.playbackRate + 0.1);
-});
-
 elements.timeline.addEventListener("pointerdown", () => {
   state.seeking = true;
 });
@@ -406,18 +356,6 @@ document.addEventListener("keydown", (event) => {
   } else if (event.key === "ArrowRight") {
     event.preventDefault();
     moveSentence(1);
-  } else if (event.code === "KeyZ") {
-    event.preventDefault();
-    setPlaybackRate(state.playbackRate - 0.1);
-  } else if (event.code === "KeyX") {
-    event.preventDefault();
-    setPlaybackRate(1);
-  } else if (event.code === "KeyC") {
-    event.preventDefault();
-    setPlaybackRate(state.playbackRate + 0.1);
-  } else if (event.code === "KeyV" || event.code === "KeyB") {
-    event.preventDefault();
-    setPlaybackRate(4);
   } else if (event.key === "Escape" && state.transcriptOpen) {
     setTranscriptOpen(false);
   }

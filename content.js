@@ -543,15 +543,6 @@
     return true;
   }
 
-  function setPlaybackRate(rate) {
-    const video = state.video || document.querySelector("video.html5-main-video");
-    const requestedRate = Number(rate);
-    if (!video || !Number.isFinite(requestedRate)) return null;
-    const playbackRate = Math.max(0.25, Math.min(4, requestedRate));
-    video.playbackRate = playbackRate;
-    return video.playbackRate;
-  }
-
   function scheduleNavigationCheck() {
     setTimeout(() => {
       const videoId = videoIdFromUrl();
@@ -619,12 +610,6 @@
         video.pause();
         sendResponse({ ok: true, paused: true });
       }
-      return false;
-    }
-
-    if (message?.type === "reader-on-chrome:set-playback-rate") {
-      const playbackRate = setPlaybackRate(message.rate);
-      sendResponse({ ok: playbackRate !== null, playbackRate });
       return false;
     }
 

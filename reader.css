@@ -116,11 +116,6 @@ button:hover {
   pointer-events: none;
 }
 
-.rate-toast[data-tone="warning"] {
-  border-color: #cb4b16;
-  background: color-mix(in srgb, var(--bg-base) 88%, #cb4b16);
-}
-
 .video-heading {
   min-width: 0;
   text-align: center;
@@ -395,32 +390,29 @@ body[data-display-mode="chinese"] .chinese-text {
   font-variant-numeric: tabular-nums;
 }
 
-.rate-control {
+.rate-display {
   display: flex;
   align-items: center;
-  overflow: hidden;
+  gap: 6px;
+  height: 30px;
+  padding: 0 10px;
   border: 1px solid var(--border);
   border-radius: 8px;
-}
-
-.rate-control button {
-  min-width: 28px;
-  height: 30px;
-  padding: 0 7px;
-  border: 0;
-  border-radius: 0;
   color: var(--fg-muted);
   font-variant-numeric: tabular-nums;
 }
 
-.rate-control button + button {
-  border-left: 1px solid var(--border);
+.rate-display span {
+  color: var(--fg-weak);
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
 }
 
 #rateValue {
-  min-width: 48px;
   color: var(--fg-emphasis);
   font-size: 11px;
+  font-weight: 600;
 }
 
 .sentence-counter {
@@ -465,11 +457,6 @@ body[data-display-mode="chinese"] .chinese-text {
   }
 
   .playerbar .time {
-    display: none;
-  }
-
-  .rate-control button:first-child,
-  .rate-control button:last-child {
     display: none;
   }
 }

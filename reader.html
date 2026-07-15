@@ -64,10 +64,9 @@
       <span id="currentTime" class="time">0:00</span>
       <input id="timeline" type="range" min="0" max="1" step="0.05" value="0" aria-label="视频进度" />
       <span id="duration" class="time">0:00</span>
-      <div class="rate-control" aria-label="播放速度">
-        <button id="rateDown" type="button" title="减速 0.1×（Z）">−</button>
-        <button id="rateValue" type="button" title="恢复 1×（X）">1×</button>
-        <button id="rateUp" type="button" title="加速 0.1×（C）">+</button>
+      <div class="rate-display" aria-label="Global Speed 当前播放速度" title="倍速由 Global Speed 控制">
+        <span>GS</span>
+        <strong id="rateValue">1×</strong>
       </div>
       <span id="sentenceCounter" class="sentence-counter">0 / 0</span>
     </footer>
