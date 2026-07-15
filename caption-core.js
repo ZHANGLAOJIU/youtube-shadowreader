@@ -106,6 +106,19 @@
     return url.href;
   }
 
+  function wordTimingTrack(config) {
+    const tracks = Array.isArray(config?.tracks) ? config.tracks : [];
+    return (
+      tracks.find(
+        (track) =>
+          String(track.languageCode || "").toLowerCase().startsWith("en") &&
+          track.kind === "asr"
+      ) ||
+      config?.englishTrack ||
+      null
+    );
+  }
+
   function parseJson3(payload) {
     const events = Array.isArray(payload?.events) ? payload.events : [];
     const cues = [];
@@ -527,7 +540,8 @@
     mergeIntoSentences,
     normalizeWhitespace,
     parseJson3,
-    parseJson3WordTimings
+    parseJson3WordTimings,
+    wordTimingTrack
   };
 
   globalScope.ReaderCaptionCore = api;

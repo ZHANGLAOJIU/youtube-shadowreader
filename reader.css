@@ -116,6 +116,11 @@ button:hover {
   pointer-events: none;
 }
 
+.rate-toast[data-tone="warning"] {
+  border-color: #cb4b16;
+  background: color-mix(in srgb, var(--bg-base) 88%, #cb4b16);
+}
+
 .video-heading {
   min-width: 0;
   text-align: center;

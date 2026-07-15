@@ -25,11 +25,19 @@
 - 拖动底部进度条控制 YouTube。
 - 切换中英模式、明暗主题并打开完整字幕列表。
 - 在 YouTube 提供词时间戳时进行真实逐词高亮，不调用 ASR 或模型。
+- 人工字幕没有词时间戳时，会自动使用 YouTube 自动英文轨道的真实词时间轴进行对齐。
 
 在 YouTube 普通视频页按 `Option + Shift + R`（Windows/Linux 为
 `Alt + Shift + R`）可打开固定伴读页；在伴读页再按一次会切回原视频。
 Chrome 也允许在
 `chrome://extensions/shortcuts` 中自定义这个快捷键。
+
+### 其他倍速插件
+
+Global Speed 等插件会持续维护自己的播放速度，不能与伴读器同时接管
+YouTube 倍速。如果看到“其他倍速插件已改回”提示，请在 Global Speed 的
+URL 规则中将 `https://www.youtube.com/watch` 设为“状态：关闭”。Global Speed
+仍可在其他网站继续使用。
 
 ## 当前支持
 

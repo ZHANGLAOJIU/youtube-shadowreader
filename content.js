@@ -302,7 +302,7 @@
       }
 
       const cacheKey = [
-        "v3",
+        "v4",
         videoId,
         config.englishTrack.vssId || config.englishTrack.languageCode || "en",
         config.supportsSimplifiedChinese ? "zh-Hans" : "en-only"
@@ -404,7 +404,26 @@
         }
       }
 
-      const timedWords = core.parseJson3WordTimings(englishPayload);
+      let timedWords = core.parseJson3WordTimings(englishPayload);
+      if (!timedWords.length) {
+        const timingTrack = core.wordTimingTrack(config);
+        if (timingTrack && timingTrack !== config.englishTrack) {
+          try {
+            const timingText = await fetchText(
+              core.captionUrl(timingTrack),
+              "application/json",
+              usingFallbackTrack ? 4 : 1,
+              usingFallbackTrack ? "omit" : "include"
+            );
+            timedWords = core.parseJson3WordTimings(JSON.parse(timingText));
+          } catch (error) {
+            console.warn(
+              "Reader on Chrome: automatic word timing unavailable",
+              error
+            );
+          }
+        }
+      }
       sentences = core.attachWordTimings(sentences, timedWords);
       if (sentences.some((sentence) => sentence.words?.length)) {
         source += " · 逐词同步";

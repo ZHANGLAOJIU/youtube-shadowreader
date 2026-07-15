@@ -46,6 +46,28 @@ test("detects translation support from a translatable caption track", () => {
   assert.equal(core.captionConfig(playerResponse).supportsSimplifiedChinese, true);
 });
 
+test("uses manual captions for copy and automatic captions for word timing", () => {
+  const manualTrack = {
+    languageCode: "en",
+    baseUrl: "https://www.youtube.com/api/timedtext?track=manual"
+  };
+  const automaticTrack = {
+    languageCode: "en",
+    kind: "asr",
+    baseUrl: "https://www.youtube.com/api/timedtext?track=asr"
+  };
+  const config = core.captionConfig({
+    captions: {
+      playerCaptionsTracklistRenderer: {
+        captionTracks: [automaticTrack, manualTrack]
+      }
+    }
+  });
+
+  assert.equal(config.englishTrack, manualTrack);
+  assert.equal(core.wordTimingTrack(config), automaticTrack);
+});
+
 test("turns rolling caption chunks into sentence-level segments", () => {
   const cues = [
     { startMs: 9320, endMs: 12040, text: "Thank you for giving me this" },

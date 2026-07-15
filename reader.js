@@ -5,6 +5,7 @@ const captionCore = globalThis.ReaderCaptionCore;
 const DEFAULT_SETTINGS = { displayMode: "bilingual" };
 const POLL_INTERVAL_MS = 250;
 let rateToastTimer = null;
+let rateVerificationTimer = null;
 
 chrome.runtime.sendMessage({
   type: "reader-on-chrome:register-reader",
@@ -86,11 +87,41 @@ function formatPlaybackRate(rate) {
 
 function showRateToast(rate) {
   clearTimeout(rateToastTimer);
+  delete elements.rateToast.dataset.tone;
   elements.rateToast.textContent = `速度 ${formatPlaybackRate(rate)}`;
   elements.rateToast.hidden = false;
   rateToastTimer = setTimeout(() => {
     elements.rateToast.hidden = true;
   }, 2000);
+}
+
+function showRateConflictToast(rate) {
+  clearTimeout(rateToastTimer);
+  elements.rateToast.dataset.tone = "warning";
+  elements.rateToast.textContent = `其他倍速插件已改回 ${formatPlaybackRate(rate)}`;
+  elements.rateToast.hidden = false;
+  rateToastTimer = setTimeout(() => {
+    elements.rateToast.hidden = true;
+  }, 4500);
+}
+
+function verifyPlaybackRate(expectedRate) {
+  clearTimeout(rateVerificationTimer);
+  rateVerificationTimer = setTimeout(async () => {
+    try {
+      const snapshot = await tabMessage({
+        type: "reader-on-chrome:get-playback"
+      });
+      if (
+        snapshot?.ok &&
+        Math.abs(Number(snapshot.playbackRate) - expectedRate) > 0.01
+      ) {
+        showRateConflictToast(snapshot.playbackRate);
+      }
+    } catch {
+      // The normal connection status handles a closed YouTube tab.
+    }
+  }, 1300);
 }
 
 function setConnection(connected, message = "") {
@@ -289,6 +320,7 @@ async function setPlaybackRate(rate) {
       state.playbackRate = response.playbackRate;
       elements.rateValue.textContent = formatPlaybackRate(state.playbackRate);
       showRateToast(state.playbackRate);
+      verifyPlaybackRate(state.playbackRate);
     }
   } catch {
     setConnection(false, "无法调整视频速度");
