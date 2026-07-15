@@ -27,7 +27,7 @@
 - 在 YouTube 提供词时间戳时进行真实逐词高亮，不调用 ASR 或模型。
 - 人工字幕没有词时间戳时，会自动使用 YouTube 自动英文轨道的真实词时间轴进行对齐。
 
-在 YouTube 普通视频页按 `Option + Shift + R`（Windows/Linux 为
+在 YouTube 普通视频页按 `Command + Shift + Y`（Windows/Linux 为
 `Alt + Shift + R`）可打开固定伴读页；在伴读页再按一次会切回原视频。
 Chrome 也允许在
 `chrome://extensions/shortcuts` 中自定义这个快捷键。
