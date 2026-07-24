@@ -27,8 +27,18 @@
     chineseLine: null,
     status: null,
     frame: 0,
-    lastUrl: location.href
+    lastUrl: location.href,
+    translationRetryTimer: 0,
+    translationRetryAttempt: 0
   };
+
+  class CaptionRequestError extends Error {
+    constructor(message, status = 0) {
+      super(message);
+      this.name = "CaptionRequestError";
+      this.status = Number(status || 0);
+    }
+  }
 
   function videoIdFromUrl() {
     const url = new URL(location.href);
@@ -49,32 +59,144 @@
     });
   }
 
+  function requestOfficialCaptionTexts(videoId, timeoutMs = 30000) {
+    return new Promise((resolve) => {
+      const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      let timer = 0;
+
+      function onResponse(event) {
+        if (event.detail?.requestId !== requestId) return;
+        clearTimeout(timer);
+        window.removeEventListener(
+          "reader-on-chrome:official-caption-texts-response",
+          onResponse
+        );
+        resolve(event.detail);
+      }
+
+      window.addEventListener(
+        "reader-on-chrome:official-caption-texts-response",
+        onResponse
+      );
+      window.dispatchEvent(
+        new CustomEvent("reader-on-chrome:request-official-caption-texts", {
+          detail: { requestId, videoId }
+        })
+      );
+      timer = setTimeout(() => {
+        window.removeEventListener(
+          "reader-on-chrome:official-caption-texts-response",
+          onResponse
+        );
+        resolve(null);
+      }, timeoutMs);
+    });
+  }
+
+  function requestCaptionTextFromPage(
+    url,
+    accept,
+    credentials,
+    timeoutMs = 15000
+  ) {
+    return new Promise((resolve) => {
+      const requestId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      let timer = 0;
+
+      function onResponse(event) {
+        if (event.detail?.requestId !== requestId) return;
+        clearTimeout(timer);
+        window.removeEventListener(
+          "reader-on-chrome:caption-text-response",
+          onResponse
+        );
+        resolve(event.detail);
+      }
+
+      window.addEventListener(
+        "reader-on-chrome:caption-text-response",
+        onResponse
+      );
+      window.dispatchEvent(
+        new CustomEvent("reader-on-chrome:request-caption-text", {
+          detail: { requestId, url, accept, credentials }
+        })
+      );
+      timer = setTimeout(() => {
+        window.removeEventListener(
+          "reader-on-chrome:caption-text-response",
+          onResponse
+        );
+        resolve(null);
+      }, timeoutMs);
+    });
+  }
+
+  function isYouTubeCaptionUrl(value) {
+    try {
+      const url = new URL(value);
+      return (
+        url.origin === "https://www.youtube.com" &&
+        url.pathname === "/api/timedtext"
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  async function captionResponse(url, accept, credentials) {
+    if (isYouTubeCaptionUrl(url)) {
+      let response = await requestCaptionTextFromPage(
+        url,
+        accept,
+        credentials
+      );
+      if (response?.status === 429 && credentials !== "omit") {
+        response = await requestCaptionTextFromPage(url, accept, "omit");
+      }
+      if (response) return response;
+    }
+    return runtimeMessage({
+      type: "reader-on-chrome:fetch-text",
+      url,
+      accept,
+      credentials
+    });
+  }
+
   async function fetchText(
     url,
     accept,
     attempts = 4,
     credentials = "include"
   ) {
-    let lastError = new Error("Caption request failed");
+    let lastError = new CaptionRequestError("Caption request failed");
     for (let attempt = 0; attempt < attempts; attempt += 1) {
-      const response = await runtimeMessage({
-        type: "reader-on-chrome:fetch-text",
-        url,
-        accept,
-        credentials
-      });
+      let response;
+      try {
+        response = await captionResponse(url, accept, credentials);
+      } catch (error) {
+        lastError = new CaptionRequestError(error.message);
+        if (attempt + 1 < attempts) {
+          await sleep(1000 * 2 ** attempt);
+          continue;
+        }
+        throw lastError;
+      }
       if (response?.ok && response.text?.trim()) return response.text;
-      lastError = new Error(
+      lastError = new CaptionRequestError(
         response?.status === 429
           ? "YouTube 字幕请求过于频繁"
           : response?.ok
             ? "YouTube 暂时返回了空字幕"
-          : response?.error || `YouTube HTTP ${response?.status || 0}`
+            : response?.error || `YouTube HTTP ${response?.status || 0}`,
+        response?.status
       );
+      if (response?.status === 429) throw lastError;
       if (!response?.ok && response?.status !== 429 && response?.status < 500) {
         break;
       }
-      await sleep(1000 * 2 ** attempt);
+      if (attempt + 1 < attempts) await sleep(1000 * 2 ** attempt);
     }
     throw lastError;
   }
@@ -281,6 +403,76 @@
     state.activeWordIndex = -1;
   }
 
+  function cancelTranslationRetry() {
+    clearTimeout(state.translationRetryTimer);
+    state.translationRetryTimer = 0;
+    state.translationRetryAttempt = 0;
+  }
+
+  function scheduleTranslationRetry(context, error) {
+    const delayMs = core.captionRetryDelay(
+      error?.status,
+      state.translationRetryAttempt
+    );
+    if (delayMs === null || context.generation !== state.generation) return false;
+
+    clearTimeout(state.translationRetryTimer);
+    state.translationRetryAttempt += 1;
+    setStatus(
+      `中文轨道暂时受限，${Math.ceil(delayMs / 1000)} 秒后自动重试`,
+      "warning"
+    );
+    state.translationRetryTimer = setTimeout(async () => {
+      if (context.generation !== state.generation) return;
+      try {
+        const officialCaptions = await requestOfficialCaptionTexts(
+          context.videoId
+        );
+        if (context.generation !== state.generation) return;
+        const chineseText =
+          officialCaptions?.chineseText ||
+          (await fetchText(
+            core.captionUrl(context.config.englishTrack, "zh-Hans"),
+            "application/json",
+            1,
+            context.credentials
+          ));
+        if (context.generation !== state.generation) return;
+        const chineseCues = core.parseJson3(JSON.parse(chineseText));
+        if (!chineseCues.length) {
+          throw new CaptionRequestError("YouTube 暂时返回了空翻译");
+        }
+        let sentences = core.buildBilingualSentences(
+          context.englishCues,
+          chineseCues
+        );
+        sentences = core.attachWordTimings(sentences, context.timedWords);
+        const source = sentences.some((sentence) => sentence.words?.length)
+          ? "YouTube 中英双语 · 逐词同步"
+          : "YouTube 中英双语";
+
+        state.sentences = sentences;
+        state.activeIndex = -1;
+        state.activeWordIndex = -1;
+        state.translationRetryTimer = 0;
+        state.translationRetryAttempt = 0;
+        state.generation += 1;
+        const completedGeneration = state.generation;
+        renderActiveSentence();
+        await cachePut(context.cacheKey, sentences, source);
+        if (completedGeneration === state.generation) {
+          setStatus(`${sentences.length} 句 · ${source}`, "success");
+        }
+      } catch (retryError) {
+        if (context.generation !== state.generation) return;
+        if (!scheduleTranslationRetry(context, retryError)) {
+          setStatus("YouTube 英文（中文轨道暂时不可用）", "warning");
+        }
+      }
+    }, delayMs);
+    return true;
+  }
+
   async function loadTimeline(videoId, generation) {
     setStatus("正在读取 YouTube 字幕…");
     clearCaption();
@@ -302,7 +494,7 @@
       }
 
       const cacheKey = [
-        "v4",
+        "v5",
         videoId,
         config.englishTrack.vssId || config.englishTrack.languageCode || "en",
         config.supportsSimplifiedChinese ? "zh-Hans" : "en-only"
@@ -318,53 +510,79 @@
         return;
       }
 
+      let officialCaptions = null;
+      if (config.supportsSimplifiedChinese) {
+        setStatus("正在通过 YouTube 官方播放器读取字幕…");
+        officialCaptions = await requestOfficialCaptionTexts(videoId);
+        if (generation !== state.generation) return;
+        if (!officialCaptions?.ok) {
+          console.debug(
+            "Reader on Chrome: official caption capture unavailable",
+            officialCaptions?.error || "timeout"
+          );
+        }
+      }
+
       let englishText;
-      try {
-        englishText = await fetchText(
-          core.captionUrl(config.englishTrack),
-          "application/json",
-          usingFallbackTrack ? 4 : 1,
-          usingFallbackTrack ? "omit" : "include"
-        );
-      } catch (webCaptionError) {
-        if (usingFallbackTrack) throw webCaptionError;
-        const fallbackPlayerResponse = await loadFallbackPlayerResponse(videoId);
-        const fallbackConfig = core.captionConfig(fallbackPlayerResponse);
-        if (!fallbackConfig?.englishTrack) throw webCaptionError;
-        config = fallbackConfig;
-        usingFallbackTrack = true;
-        englishText = await fetchText(
-          core.captionUrl(config.englishTrack),
-          "application/json",
-          4,
-          "omit"
-        );
+      if (officialCaptions?.englishText) {
+        englishText = officialCaptions.englishText;
+      } else {
+        try {
+          englishText = await fetchText(
+            core.captionUrl(config.englishTrack),
+            "application/json",
+            usingFallbackTrack ? 4 : 1,
+            usingFallbackTrack ? "omit" : "include"
+          );
+        } catch (webCaptionError) {
+          if (usingFallbackTrack) throw webCaptionError;
+          const fallbackPlayerResponse =
+            await loadFallbackPlayerResponse(videoId);
+          const fallbackConfig = core.captionConfig(fallbackPlayerResponse);
+          if (!fallbackConfig?.englishTrack) throw webCaptionError;
+          config = fallbackConfig;
+          usingFallbackTrack = true;
+          englishText = await fetchText(
+            core.captionUrl(config.englishTrack),
+            "application/json",
+            4,
+            "omit"
+          );
+        }
       }
       if (generation !== state.generation) return;
       let englishPayload = JSON.parse(englishText);
       let englishCues = core.parseJson3(englishPayload);
       let sentences = core.mergeIntoSentences(englishCues);
       let source = "YouTube 英文";
+      let translationError = null;
 
       if (config.supportsSimplifiedChinese) {
         try {
-          const chineseText = await fetchText(
-            core.captionUrl(config.englishTrack, "zh-Hans"),
-            "application/json",
-            4,
-            usingFallbackTrack ? "omit" : "include"
-          );
+          const chineseText =
+            officialCaptions?.chineseText ||
+            (await fetchText(
+              core.captionUrl(config.englishTrack, "zh-Hans"),
+              "application/json",
+              1,
+              usingFallbackTrack ? "omit" : "include"
+            ));
           const chineseCues = core.parseJson3(JSON.parse(chineseText));
+          if (!chineseCues.length) {
+            throw new CaptionRequestError("YouTube 暂时返回了空翻译");
+          }
           sentences = core.buildBilingualSentences(englishCues, chineseCues);
           source = "YouTube 中英双语";
         } catch (error) {
           let fallbackSucceeded = false;
-          if (!usingFallbackTrack) {
+          if (!usingFallbackTrack && error.status !== 429) {
             try {
               const fallbackPlayerResponse =
                 await loadFallbackPlayerResponse(videoId);
               const fallbackConfig = core.captionConfig(fallbackPlayerResponse);
               if (!fallbackConfig?.englishTrack) throw error;
+              config = fallbackConfig;
+              usingFallbackTrack = true;
               const fallbackEnglishText = await fetchText(
                 core.captionUrl(fallbackConfig.englishTrack),
                 "application/json",
@@ -374,7 +592,7 @@
               const fallbackChineseText = await fetchText(
                 core.captionUrl(fallbackConfig.englishTrack, "zh-Hans"),
                 "application/json",
-                4,
+                1,
                 "omit"
               );
               englishPayload = JSON.parse(fallbackEnglishText);
@@ -382,24 +600,26 @@
               const chineseCues = core.parseJson3(
                 JSON.parse(fallbackChineseText)
               );
+              if (!chineseCues.length) {
+                throw new CaptionRequestError("YouTube 暂时返回了空翻译");
+              }
               sentences = core.buildBilingualSentences(
                 englishCues,
                 chineseCues
               );
-              config = fallbackConfig;
-              usingFallbackTrack = true;
               source = "YouTube 中英双语";
               fallbackSucceeded = true;
             } catch (fallbackError) {
-              console.warn(
+              console.debug(
                 "Reader on Chrome: Chinese fallback unavailable",
                 fallbackError
               );
+              translationError = fallbackError;
             }
           }
           if (!fallbackSucceeded) {
             source = "YouTube 英文（中文轨道暂时不可用）";
-            console.warn("Reader on Chrome: Chinese captions unavailable", error);
+            translationError ||= error;
           }
         }
       }
@@ -417,7 +637,7 @@
             );
             timedWords = core.parseJson3WordTimings(JSON.parse(timingText));
           } catch (error) {
-            console.warn(
+            console.debug(
               "Reader on Chrome: automatic word timing unavailable",
               error
             );
@@ -434,12 +654,30 @@
       if (!source.includes("中文轨道暂时不可用")) {
         await cachePut(cacheKey, sentences, source);
       }
-      setStatus(`${sentences.length} 句 · ${source}`, "success");
+      if (
+        translationError &&
+        scheduleTranslationRetry(
+          {
+            videoId,
+            generation,
+            config,
+            credentials: usingFallbackTrack ? "omit" : "include",
+            englishCues,
+            timedWords,
+            cacheKey
+          },
+          translationError
+        )
+      ) {
+        renderActiveSentence();
+      } else {
+        setStatus(`${sentences.length} 句 · ${source}`, "success");
+      }
     } catch (error) {
       if (generation !== state.generation) return;
       state.sentences = [];
       setStatus(error.message || "字幕读取失败", "error");
-      console.error("Reader on Chrome: timeline load failed", error);
+      console.debug("Reader on Chrome: timeline load failed", error);
     }
   }
 
@@ -549,6 +787,7 @@
       if (videoId === state.videoId) return;
       state.videoId = videoId;
       state.generation += 1;
+      cancelTranslationRetry();
       state.sentences = [];
       clearCaption();
       if (!videoId) {
@@ -580,6 +819,7 @@
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     if (message?.type === "reader-on-chrome:reload") {
       state.generation += 1;
+      cancelTranslationRetry();
       if (state.videoId) loadTimeline(state.videoId, state.generation);
       return false;
     }

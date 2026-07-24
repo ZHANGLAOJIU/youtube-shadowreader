@@ -119,6 +119,18 @@
     );
   }
 
+  function captionRetryDelay(status, attempt = 0) {
+    const numericStatus = Number(status || 0);
+    if (
+      numericStatus !== 0 &&
+      numericStatus !== 429 &&
+      numericStatus < 500
+    ) {
+      return null;
+    }
+    return Math.min(5 * 60 * 1000, 30 * 1000 * 2 ** Math.max(0, attempt));
+  }
+
   function parseJson3(payload) {
     const events = Array.isArray(payload?.events) ? payload.events : [];
     const cues = [];
@@ -535,6 +547,7 @@
     attachWordTimings,
     buildBilingualSentences,
     captionConfig,
+    captionRetryDelay,
     captionUrl,
     extractAssignedJson,
     mergeIntoSentences,

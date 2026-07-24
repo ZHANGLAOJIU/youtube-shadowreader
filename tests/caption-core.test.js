@@ -202,3 +202,10 @@ test("finds the active word from YouTube word timing", () => {
   assert.equal(core.activeWordIndex(words, 1800), 2);
   assert.equal(core.activeWordIndex(words, 2400), -1);
 });
+
+test("backs off retryable caption failures without retrying client errors", () => {
+  assert.equal(core.captionRetryDelay(429, 0), 30_000);
+  assert.equal(core.captionRetryDelay(429, 1), 60_000);
+  assert.equal(core.captionRetryDelay(503, 4), 300_000);
+  assert.equal(core.captionRetryDelay(404, 0), null);
+});
